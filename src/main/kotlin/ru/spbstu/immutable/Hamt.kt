@@ -4,7 +4,7 @@ import kotlinx.warnings.Warnings
 import ru.spbstu.wheels.*
 
 const val DIGITS = 5
-const val MAX_DEPTH = 7
+const val MAX_DEPTH = 6
 
 sealed class HamtElement<K, out V> {
     @Suppress(Warnings.NOTHING_TO_INLINE)
@@ -78,11 +78,11 @@ sealed class HamtElement<K, out V> {
         }
     }
 
-    private fun findEntry(depth: Int, key: K, hashBits: IntBits = hash(key)): Entry<K, V>? {
+    protected fun findEntry(depth: Int, key: K, hashBits: IntBits = hash(key)): Entry<K, V>? {
         when(this) {
             is Entry -> return if(key == this.key) this else null
             is Bucket -> {
-                for(entry in this) findEntry(depth, key, hashBits)?.let { return it }
+                for(entry in this) entry.findEntry(depth, key, hashBits)?.let { return it }
                 return null
             }
             is Node -> {
@@ -96,23 +96,22 @@ sealed class HamtElement<K, out V> {
     fun contains(key: K) = findEntry(0, key) != null
     fun getValue(key: K) = findEntry(0, key)?.value
 
-    protected fun insert(depth: Int, key: K, value: @UnsafeVariance V, hashBits: IntBits = hash(key)): HamtElement<K, V> {
-        when(this) {
-            is Entry -> return if(key == this.key) copy(value = value) else {
-                if(depth == MAX_DEPTH) Bucket(this + (Entry(key, value) + SList.Nil))
-                else Node<K, V>()
-                        .insert(depth + 1, this.key, this.value) // recalculating the hash for this.key is unfortunate
-                        .insert(depth + 1, key, value, hashBits)
+    protected fun insert(depth: Int, key: K, value: @UnsafeVariance V, hashBits: IntBits = hash(key)): HamtElement<K, V> =
+            when(this) {
+                is Entry -> if(key == this.key) copy(value = value) else {
+                    if(depth == MAX_DEPTH) Bucket(this + (Entry(key, value) + SList.Nil))
+                    else Node<K, V>()
+                            .insert(depth + 1, this.key, this.value) // recalculating the hash for this.key is unfortunate
+                            .insert(depth + 1, key, value, hashBits)
+                }
+                is Bucket -> this + Entry(key, value)
+                is Node -> {
+                    val index = hashBits.wordAt(depth, DIGITS).asInt()
+                    val sub = this[index] ?: if(depth == MAX_DEPTH) Entry(key, value) else Node()
+                    set(index, sub.insert(depth + 1, key, value, hashBits))
+                }
             }
-            is Bucket -> {
-                return this + Entry(key, value)
-            }
-            is Node -> {
-                val index = hashBits.wordAt(depth, DIGITS).asInt()
-                val sub = this[index] ?: if(depth == MAX_DEPTH) Entry(key, value) else Node()
-                return set(index, sub.insert(depth + 1, key, value, hashBits))
-            }
-        }
-    }
+
+    fun insert(key: K, value: @UnsafeVariance V) = insert(0, key, value)
 
 }
