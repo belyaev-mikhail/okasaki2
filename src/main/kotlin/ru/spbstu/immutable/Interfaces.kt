@@ -29,6 +29,21 @@ inline operator fun <E> ImmutableSet<E>.plus(that: ImmutableSet<E>) = addAll(tha
 inline operator fun <E> ImmutableSet<E>.minus(value: E) = remove(value)
 inline operator fun <E> ImmutableSet<E>.minus(that: Collection<E>) = removeAll(that)
 
+interface ImmutableMap<K, out V> : Map<K, V> {
+    fun put(key: K, value: @UnsafeVariance V): ImmutableMap<K, V>
+    fun remove(key: K): ImmutableMap<K, V>
+    fun remove(key: K, value: @UnsafeVariance V): ImmutableMap<K, V> =
+            when(get(key)) {
+                value -> remove(key)
+                else -> this
+            }
+    fun putAll(from: Map<K, @UnsafeVariance V>): ImmutableMap<K, V> {
+        var res = this
+        for((k, v) in from) res = res.put(k, v)
+        return res
+    }
+}
+
 interface ImmutableQueue<out E> {
     val top: E?
     fun pop(): ImmutableQueue<E>

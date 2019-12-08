@@ -45,3 +45,4 @@ abstract class AbstractImmutableSet<out E> : AbstractSet<E>(), ImmutableSet<E> {
     }
 }
 
+abstract class AbstractImmutableMap<K, out V> : AbstractMap<K, V>(), ImmutableMap<K, V>
