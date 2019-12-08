@@ -13,7 +13,7 @@ class HamtInternalsTest {
 
     @Test
     fun testNodes() {
-        var nd = HamtElement.Node<Int, Int>(IntBits.Zero, TArray(0))
+        var nd = HamtElement.Node<Int, Int>()
 
         nd = nd.set(1, Entry(2, 3))
         nd = nd.set(30, Entry(4, 5))
@@ -29,7 +29,7 @@ class HamtInternalsTest {
         assertEquals(Entry(2, 3), nd[1])
         assertEquals(Entry(6, 7), nd[30])
 
-        var new = HamtElement.Node<Int, Int>(IntBits.Zero, TArray(0))
+        var new = HamtElement.Node<Int, Int>()
         for(i in (0..31).shuffled(Random(42))) new = new.set(i, Entry(i, i))
 
         for(i in 0..31) assertEquals(Entry(i, i), new[i])
@@ -59,6 +59,9 @@ class HamtInternalsTest {
         assertEquals(Entry(3, 6), b + Entry(3, 6))
 
         val many = Entry(4, 5) + Entry(1, 2) + Entry(4, 3) + Entry(2, 5)
+        assertEquals(3, many.size)
+        assertEquals(3, (many - 40)?.size)
+        assertEquals(2, (many - 1)?.size)
         assertEquals(
                 Entry(4, 3) + Entry(2, 5),
                 many - 1
@@ -76,12 +79,16 @@ class HamtInternalsTest {
         b = b.insert(3, 4)
         assert(b.contains(2))
         assert(b.contains(3))
+        assertEquals(2, b.size)
         assertEquals(3, b.getValue(2))
         assertEquals(4, b.getValue(3))
         b = b.insert(3, 5)
         assert(b.contains(2))
         assert(b.contains(3))
+        assertEquals(2, b.size)
         assertEquals(3, b.getValue(2))
         assertEquals(5, b.getValue(3))
+        b = b.insert(30, 30)
+        assertEquals(3, b.size)
     }
 }

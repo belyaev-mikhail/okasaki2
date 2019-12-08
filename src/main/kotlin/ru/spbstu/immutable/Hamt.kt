@@ -6,7 +6,7 @@ import ru.spbstu.wheels.*
 private const val DIGITS = 5
 private const val MAX_DEPTH = 6
 
-sealed class HamtElement<K, out V> {
+internal sealed class HamtElement<K, out V> {
     @Suppress(Warnings.NOTHING_TO_INLINE)
     internal inline fun hash(key: K): IntBits {
         val h: Int = key.hashCode()
@@ -19,13 +19,13 @@ sealed class HamtElement<K, out V> {
     class Entry<K, out V>(override val key: K,
                           override val value: V,
                           val nextEntry: Entry<K, V>? = null,
-                          override val size: Int = nextEntry?.size ?: 0): HamtElement<K, V>(), Map.Entry<K, V> {
+                          override val size: Int = nextEntry?.size?.plus(1) ?: 1): HamtElement<K, V>(), Map.Entry<K, V> {
         fun copy(key: K = this.key,
                  value: @UnsafeVariance V = this.value,
                  nextEntry: Entry<K, @UnsafeVariance V>? = this.nextEntry) = Entry(key, value, nextEntry)
 
         operator fun plus(that: Entry<K, @UnsafeVariance V>): Entry<K, V> {
-            if(nextEntry === null) { // shortcut for most common case
+            if(null === nextEntry) { // shortcut for most common case
                 return when (key) {
                     that.key -> when (value) {
                         that.value -> this
@@ -212,7 +212,8 @@ sealed class HamtElement<K, out V> {
     fun removeKey(key: K) = remove(0, key)
 }
 
-class HamtMap<K, out V>(private val root: HamtElement<K, V>? = null) : AbstractImmutableMap<K, V>() {
+class HamtMap<K, out V>
+internal constructor(private val root: HamtElement<K, V>? = null) : AbstractImmutableMap<K, V>() {
     private inner class EntrySet : AbstractSet<Map.Entry<K, V>>() {
         override val size: Int
             get() = root?.size ?: 0
@@ -227,12 +228,43 @@ class HamtMap<K, out V>(private val root: HamtElement<K, V>? = null) : AbstractI
 
     override val entries: Set<Map.Entry<K, V>>
         get() = EntrySet()
-    override fun put(key: K, value: @UnsafeVariance V): ImmutableMap<K, V> =
+    override fun put(key: K, value: @UnsafeVariance V): HamtMap<K, V> =
             HamtMap(root?.insert(key, value) ?: HamtElement.Entry(key, value))
-    override fun remove(key: K): ImmutableMap<K, V> =
+    override fun remove(key: K): HamtMap<K, V> =
             HamtMap(root?.removeKey(key))
     override fun containsKey(key: K): Boolean = root?.contains(key) ?: false
     override fun isEmpty(): Boolean = null === root
     override val size: Int
         get() = root?.size ?: 0
+}
+
+fun <K, V> hamtMapOf(): HamtMap<K, V> = HamtMap(null)
+fun <K, V> hamtMapOf(entry: Pair<K, V>): HamtMap<K, V> = HamtMap(HamtElement.Entry(entry.first, entry.second))
+fun <K, V> hamtMapOf(vararg entries: Pair<K, V>): HamtMap<K, V> {
+    var res = hamtMapOf<K, V>()
+    for(entry in entries) res = res.put(entry.first, entry.second)
+    return res
+}
+
+class HamtSet<out E>
+internal constructor(private val root: HamtElement<@UnsafeVariance E, E>? = null) : AbstractImmutableSet<E>() {
+    override fun contains(element: @UnsafeVariance E): Boolean = root?.contains(element) ?: false
+    override fun add(element: @UnsafeVariance E): HamtSet<E> =
+            HamtSet(root?.insert(element, element) ?: HamtElement.Entry(element, element))
+    override fun remove(element: @UnsafeVariance E): HamtSet<E> =
+            HamtSet(root?.removeKey(element))
+    override val size: Int
+        get() = root?.size ?: 0
+    override fun isEmpty(): Boolean = null === root
+    override fun iterator(): Iterator<E> = iterator {
+        val inner = root?.iterator() ?: return@iterator
+        for((e,_) in inner) yield(e)
+    }
+}
+fun <E> hamtSetOf(): HamtSet<E> = HamtSet(null)
+fun <E> hamtSetOf(element: E): HamtSet<E> = HamtSet(HamtElement.Entry(element, element))
+fun <E> hamtSetOf(vararg elements: E): HamtSet<E> {
+    var res = hamtSetOf<E>()
+    for(element in elements) res = res.add(element)
+    return res
 }
