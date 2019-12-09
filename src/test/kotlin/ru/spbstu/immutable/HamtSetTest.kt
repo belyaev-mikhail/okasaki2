@@ -1,6 +1,8 @@
 package ru.spbstu.immutable
 
 import org.testng.annotations.Test
+import ru.spbstu.wheels.ints
+import kotlin.random.Random
 import kotlin.test.assertEquals
 
 data class Collider(val data: Int) {
@@ -44,5 +46,18 @@ class HamtSetTest {
 
         assertEquals(600, b.size)
         assertEquals((1..600).mapTo(mutableSetOf(), ::Collider) as Set<Collider>, b)
+    }
+
+    @Test
+    fun testRandomized() {
+        for(seed in 0..400) {
+            val random = Random(seed)
+            val data = random.ints().take(300).toList()
+
+            val hamt = hamtSetOf(*data.toTypedArray())
+            assertEquals(data.toSet(), hamt)
+            for(e in data) assert(e in hamt)
+            for(e in hamt) assertEquals(hamt, hamt - e + e)
+        }
     }
 }
