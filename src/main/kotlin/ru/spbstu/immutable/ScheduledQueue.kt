@@ -1,5 +1,7 @@
 package ru.spbstu.immutable
 
+import kotlinx.warnings.Warnings
+
 // rotate is essentially a scheduled reverse() of `inputs`
 // precondition: outputs.size == (inputs.size - 1)
 // accumulator is the result of the rotation of `input`
@@ -8,6 +10,7 @@ package ru.spbstu.immutable
 // (that is guaranteed to be the only item in inputs left if any),
 // then the accumulator
 internal fun<E> rotate(outputs: LazyList<E>, inputs: SList.Cons<E>, accumulator: LazyList<E> = LazyList.empty()): LazyList<E> =
+        @Suppress(Warnings.NAME_SHADOWING)
         when(val outputs = outputs.asCons()) {
             null -> LazyList(inputs.head) { accumulator }
             else -> LazyList(outputs.head) {

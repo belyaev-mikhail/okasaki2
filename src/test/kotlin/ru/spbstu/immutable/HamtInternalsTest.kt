@@ -38,7 +38,7 @@ class HamtInternalsTest {
         for(i in 0..31) if(i != 21) assertEquals(Entry(i, i), new[i])
         assertEquals(Entry(0, 0), new[21])
 
-        var nullableNew = new ?: null
+        var nullableNew: HamtElement.Node<Int, Int>? = new
         for(i in (0..31).shuffled(Random(142))) {
             assertNotEquals(null, nullableNew)
             nullableNew = nullableNew?.remove(i)

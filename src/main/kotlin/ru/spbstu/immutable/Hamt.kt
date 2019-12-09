@@ -45,7 +45,7 @@ internal sealed class HamtElement<K, out V> {
             }
 
             val backPath = mutableListOf<Entry<K, V>>()
-            var current = this ?: null
+            var current: Entry<K, V>? = this
             while(current != null) {
                 if(current.key == that.key) {
                     current = current.copy(value = that.value)
@@ -67,7 +67,7 @@ internal sealed class HamtElement<K, out V> {
             }
 
             val backPath = mutableListOf<Entry<K, V>>()
-            var current = this ?: null
+            var current: Entry<K, V>? = this
             while(current != null) {
                 if(current.key == key) {
                     current = current.nextEntry
@@ -80,10 +80,10 @@ internal sealed class HamtElement<K, out V> {
             return current!!
         }
 
-        override operator fun iterator(): Iterator<Entry<K, V>> = iterator {
-            var current = this@Entry ?: null
+        override operator fun iterator(): Iterator<Entry<K, V>> = iterator<Entry<K, V>> {
+            var current: Entry<K, V>? = this@Entry
             while(current !== null) {
-                yield(current!!)
+                yield(current)
                 current = current.nextEntry
             }
         }
@@ -391,8 +391,8 @@ internal constructor(internal val root: HamtElement<@UnsafeVariance E, Unit>? = 
     override val size: Int
         get() = root?.size ?: 0
     override fun isEmpty(): Boolean = null === root
-    override fun iterator(): Iterator<E> = iterator {
-        val inner = root?.iterator() ?: return@iterator
+    override fun iterator(): Iterator<E> = iterator builder@ {
+        val inner = root?.iterator() ?: return@builder
         for((e,_) in inner) yield(e)
     }
 }

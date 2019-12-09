@@ -1,4 +1,7 @@
+@file: Suppress(Warnings.NOTHING_TO_INLINE)
 package ru.spbstu.immutable
+
+import kotlinx.warnings.Warnings
 
 interface ImmutableList<out E> : List<E> {
     fun add(element: @UnsafeVariance E): ImmutableList<E>
