@@ -159,19 +159,19 @@ internal sealed class HamtElement<K, out V> {
         }
     }
 
-    internal fun findEntry(depth: Int, key: K, hashBits: IntBits = hash(key)): Entry<K, V>? {
-        when(this) {
-            is Entry -> {
-                for(entry in this) {
-                    if(entry.key == key) return entry
-                }
-                return null
-            }
-            is Node -> {
-                val index = hashBits.wordAt(depth, DIGITS).asInt()
-                return this[index]?.findEntry(depth + 1, key, hashBits)
-            }
+    private fun findEntryForHash(depth: Int, hashBits: IntBits): Entry<K, V>? = when(this) {
+        is Entry -> this
+        is Node -> {
+            val index = hashBits.wordAt(depth, DIGITS).asInt()
+            this[index]?.findEntryForHash(depth + 1, hashBits)
         }
+    }
+    internal fun findEntry(depth: Int, key: K, hashBits: IntBits = hash(key)): Entry<K, V>? {
+        val e = findEntryForHash(depth, hashBits) ?: return null
+        for(entry in e) {
+            if(entry.key == key) return entry
+        }
+        return null
     }
 
     fun findEntry(key: K) = findEntry(0, key)
