@@ -39,8 +39,8 @@ abstract class AbstractImmutableSet<out E> : AbstractSet<E>(), ImmutableSet<E> {
         return self
     }
     override fun retainAll(elements: Collection<@UnsafeVariance E>): ImmutableSet<E> {
-        var self: ImmutableSet<E> = this
-        for(e in this) if (e !in elements) self = self.remove(e)
+        var self: ImmutableSet<E> = immutableSetOf()
+        for(e in elements) if(e in this) self = self.add(e)
         return self
     }
 }

@@ -105,13 +105,11 @@ internal sealed class HamtElement<K, out V> {
                               override val size: Int): HamtElement<K, V>() {
         constructor(): this(IntBits.Zero, TArray(0), 0)
 
-        internal fun adjustIndex(index: Int) = mask.slice(toExclusive = index).popCount
-
-        operator fun get(index: Int) = if(mask[index]) data[adjustIndex(index)] else null
+        operator fun get(index: Int) = if(mask[index]) data[adjustIndex(mask, index)] else null
         fun set(index: Int, element: HamtElement<K, @UnsafeVariance V>): Node<K, V> {
             require(0 <= index && index < IntBits.SIZE)
 
-            val adjustedIndex = adjustIndex(index)
+            val adjustedIndex = adjustIndex(mask, index)
             if(mask[index]) {
                 val existingSize = data[adjustedIndex]?.size ?: 0
                 val sizeAdjustment = element.size - existingSize
@@ -132,7 +130,7 @@ internal sealed class HamtElement<K, out V> {
         fun remove(index: Int): Node<K, V>? {
             require(0 <= index && index < IntBits.SIZE)
 
-            val adjustedIndex = adjustIndex(index)
+            val adjustedIndex = adjustIndex(mask, index)
             if(!mask[index]) return this
 
             val newMask = mask.clear(index)
@@ -239,7 +237,7 @@ internal sealed class HamtElement<K, out V> {
                     val index = bit.numberOfLeadingZeros
                     val thisE = this[index]
                     val thatE = element[index]
-                    val adjustedIndex = totalMask.slice(toExclusive = index).popCount
+                    val adjustedIndex = adjustIndex(totalMask, index)
                     newData[adjustedIndex] = when {
                         null === thisE -> thatE
                         null === thatE -> thisE
@@ -253,6 +251,71 @@ internal sealed class HamtElement<K, out V> {
     }
 
     infix fun union(that: HamtElement<K, @UnsafeVariance V>) = union(0, that)
+
+    internal fun intersect(depth: Int, element: HamtElement<K, @UnsafeVariance V>): HamtElement<K, V>? {
+        if(element === this) return this
+        return when(this) {
+            is Entry -> when(element) {
+                is Entry -> {
+                    // XXX: optimize this
+                    var res: Entry<K, V>? = null
+                    for(l in this) {
+                        for(r in element) {
+                            if(l.key == r.key && l.value == r.value) res = if(res === null) l else l + res
+                        }
+                    }
+                    res
+                }
+                is Node -> element.intersect(depth, this) // Entry x Node -> Node x Entry
+            }
+            is Node -> when(element) {
+                is Entry -> {
+                    val hashCode = hash(element.key)
+                    val entry = findEntryForHash(depth, hashCode)
+                    entry?.intersect(depth, element)
+                }
+                is Node -> {
+                    val tmpMask = this.mask and element.mask
+                    if(tmpMask == IntBits.Zero) return null
+                    var recalculatedMask = tmpMask
+
+                    val tmpData = TArray<HamtElement<K, V>>(tmpMask.popCount)
+                    var size = 0
+                    tmpMask.forEachOneBit { bit ->
+                        val index = bit.numberOfLeadingZeros
+                        val thisE = this[index]!!
+                        val thatE = element[index]!!
+                        val adjustedIndex = adjustIndex(tmpMask, index)
+                        val res = thisE.intersect(depth + 1, thatE)
+                        if(null === res) recalculatedMask = recalculatedMask andNot bit
+                        else {
+                            tmpData[adjustedIndex] = res
+                            size += res.size
+                        }
+                    }
+
+                    when (recalculatedMask) {
+                        tmpMask -> Node(tmpMask, tmpData, size)
+                        IntBits.Zero -> null
+                        else -> {
+                            val newData = TArray<HamtElement<K, V>>(recalculatedMask.popCount)
+                            recalculatedMask.forEachOneBit { bit ->
+                                val index = bit.numberOfLeadingZeros
+                                newData[adjustIndex(recalculatedMask, index)] = tmpData[adjustIndex(tmpMask, index)]
+                            }
+                            Node(recalculatedMask, newData, size)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    infix fun intersect(that: HamtElement<K, @UnsafeVariance V>) = intersect(0, that)
+
+    companion object {
+        internal fun adjustIndex(mask: IntBits, index: Int) = mask.slice(toExclusive = index).popCount
+    }
 }
 
 class HamtMap<K, out V>
@@ -298,6 +361,10 @@ fun <K, V> hamtMapOf(vararg entries: Pair<K, V>): HamtMap<K, V> {
     return res
 }
 
+fun <K, V> immutableMapOf(): ImmutableMap<K, V> = hamtMapOf()
+fun <K, V> immutableMapOf(entry: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(entry)
+fun <K, V> immutableMapOf(vararg entries: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(*entries)
+
 class HamtSet<out E>
 internal constructor(internal val root: HamtElement<@UnsafeVariance E, E>? = null) : AbstractImmutableSet<E>() {
     override fun contains(element: @UnsafeVariance E): Boolean = root?.contains(element) ?: false
@@ -311,6 +378,14 @@ internal constructor(internal val root: HamtElement<@UnsafeVariance E, E>? = nul
         }
         else -> super.addAll(elements) as HamtSet<E>
     }
+    override fun retainAll(elements: Collection<@UnsafeVariance E>): HamtSet<E> = when(elements) {
+        is HamtSet<E> -> when {
+            null === root || null === elements.root -> this
+            else -> HamtSet(root.intersect(elements.root))
+        }
+        else -> super.retainAll(elements) as HamtSet<E>
+    }
+
     override fun remove(element: @UnsafeVariance E): HamtSet<E> =
             HamtSet(root?.removeKey(element))
     override val size: Int
@@ -328,3 +403,7 @@ fun <E> hamtSetOf(vararg elements: E): HamtSet<E> {
     for(element in elements) res = res.add(element)
     return res
 }
+
+fun <E> immutableSetOf(): ImmutableSet<E> = hamtSetOf()
+fun <E> immutableSetOf(element: E): ImmutableSet<E> = hamtSetOf(element)
+fun <E> immutableSetOf(vararg elements: E): ImmutableSet<E> = hamtSetOf(*elements)
