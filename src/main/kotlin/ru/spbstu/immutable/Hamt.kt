@@ -366,10 +366,10 @@ fun <K, V> immutableMapOf(entry: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(ent
 fun <K, V> immutableMapOf(vararg entries: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(*entries)
 
 class HamtSet<out E>
-internal constructor(internal val root: HamtElement<@UnsafeVariance E, E>? = null) : AbstractImmutableSet<E>() {
+internal constructor(internal val root: HamtElement<@UnsafeVariance E, Unit>? = null) : AbstractImmutableSet<E>() {
     override fun contains(element: @UnsafeVariance E): Boolean = root?.contains(element) ?: false
     override fun add(element: @UnsafeVariance E): HamtSet<E> =
-            HamtSet(root?.insert(element, element) ?: HamtElement.Entry(element, element))
+            HamtSet(root?.insert(element, Unit) ?: HamtElement.Entry(element, Unit))
     override fun addAll(elements: Collection<@UnsafeVariance E>): HamtSet<E> = when(elements) {
         is HamtSet<E> -> when {
             null === root -> elements
@@ -397,7 +397,7 @@ internal constructor(internal val root: HamtElement<@UnsafeVariance E, E>? = nul
     }
 }
 fun <E> hamtSetOf(): HamtSet<E> = HamtSet(null)
-fun <E> hamtSetOf(element: E): HamtSet<E> = HamtSet(HamtElement.Entry(element, element))
+fun <E> hamtSetOf(element: E): HamtSet<E> = HamtSet(HamtElement.Entry(element, Unit))
 fun <E> hamtSetOf(vararg elements: E): HamtSet<E> {
     var res = hamtSetOf<E>()
     for(element in elements) res = res.add(element)
