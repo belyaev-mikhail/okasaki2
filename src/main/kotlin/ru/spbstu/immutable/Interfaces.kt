@@ -12,9 +12,10 @@ interface ImmutableList<out E> : List<E> {
     override fun subList(fromIndex: Int, toIndex: Int): ImmutableList<E>
 }
 
-inline operator fun <E> ImmutableList<E>.plus(value: E) = add(value)
-inline operator fun <E> ImmutableList<E>.plus(that: Collection<E>) = addAll(that)
-inline operator fun <E> ImmutableList<E>.minus(value: E) = remove(value)
+inline operator fun <E> ImmutableList<E>.plus(value: E): ImmutableList<E> = add(value)
+inline operator fun <E> ImmutableList<E>.plus(that: Collection<E>): ImmutableList<E> = addAll(that)
+inline operator fun <E> ImmutableList<E>.minus(value: E): ImmutableList<E> = remove(value)
+inline operator fun <E> ImmutableList<E>.minus(that: Collection<E>): ImmutableList<E> = removeAll(that)
 
 interface ImmutableSet<out E> : Set<E> {
     fun add(element: @UnsafeVariance E): ImmutableSet<E>
@@ -24,10 +25,11 @@ interface ImmutableSet<out E> : Set<E> {
     fun retainAll(elements: Collection<@UnsafeVariance E>): ImmutableSet<E>
 }
 
-inline operator fun <E> ImmutableSet<E>.plus(value: E) = add(value)
-inline operator fun <E> ImmutableSet<E>.plus(that: ImmutableSet<E>) = addAll(that)
-inline operator fun <E> ImmutableSet<E>.minus(value: E) = remove(value)
-inline operator fun <E> ImmutableSet<E>.minus(that: Collection<E>) = removeAll(that)
+inline operator fun <E> ImmutableSet<E>.plus(value: E): ImmutableSet<E> = add(value)
+inline operator fun <E> ImmutableSet<E>.plus(that: ImmutableSet<E>): ImmutableSet<E> = addAll(that)
+inline operator fun <E> ImmutableSet<E>.minus(value: E): ImmutableSet<E> = remove(value)
+inline operator fun <E> ImmutableSet<E>.minus(that: Collection<E>): ImmutableSet<E> = removeAll(that)
+inline infix fun <E> ImmutableSet<E>.intersect(that: ImmutableSet<E>): ImmutableSet<E> = retainAll(that)
 
 interface ImmutableMap<K, out V> : Map<K, V> {
     fun put(key: K, value: @UnsafeVariance V): ImmutableMap<K, V>
@@ -43,6 +45,11 @@ interface ImmutableMap<K, out V> : Map<K, V> {
         return res
     }
 }
+
+inline operator fun <K, V> ImmutableMap<K, V>.plus(entry: Pair<K, V>): ImmutableMap<K, V> = put(entry.first, entry.second)
+inline operator fun <K, V> ImmutableMap<K, V>.plus(entry: Map.Entry<K, V>): ImmutableMap<K, V> = put(entry.key, entry.value)
+inline operator fun <K, V> ImmutableMap<K, V>.plus(that: Map<K, V>): ImmutableMap<K, V> = putAll(that)
+inline operator fun <K, V> ImmutableMap<K, V>.minus(key: K): ImmutableMap<K, V> = remove(key)
 
 interface ImmutableQueue<out E> {
     val top: E?

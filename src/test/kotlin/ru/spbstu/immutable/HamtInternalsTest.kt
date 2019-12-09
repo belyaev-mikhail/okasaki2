@@ -1,9 +1,6 @@
 package ru.spbstu.immutable
 
 import ru.spbstu.immutable.HamtElement.Entry
-import ru.spbstu.wheels.IntBits
-import ru.spbstu.wheels.TArray
-import ru.spbstu.wheels.Zero
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

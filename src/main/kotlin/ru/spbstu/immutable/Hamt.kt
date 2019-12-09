@@ -146,7 +146,7 @@ internal sealed class HamtElement<K, out V> {
 
         inline fun forEachElement(body: (HamtElement<K, V>) -> Unit) {
             mask.forEachOneBit { bit ->
-                body(get(bit.numberOfLeadingZeros)!!)
+                body(get(bit.numberOfTrailingZeros)!!)
             }
         }
 
@@ -234,7 +234,7 @@ internal sealed class HamtElement<K, out V> {
                 val newData = TArray<HamtElement<K, V>>(totalMask.popCount)
                 var size = 0
                 totalMask.forEachOneBit { bit ->
-                    val index = bit.numberOfLeadingZeros
+                    val index = bit.numberOfTrailingZeros
                     val thisE = this[index]
                     val thatE = element[index]
                     val adjustedIndex = adjustIndex(totalMask, index)
@@ -282,7 +282,7 @@ internal sealed class HamtElement<K, out V> {
                     val tmpData = TArray<HamtElement<K, V>>(tmpMask.popCount)
                     var size = 0
                     tmpMask.forEachOneBit { bit ->
-                        val index = bit.numberOfLeadingZeros
+                        val index = bit.numberOfTrailingZeros
                         val thisE = this[index]!!
                         val thatE = element[index]!!
                         val adjustedIndex = adjustIndex(tmpMask, index)
@@ -300,7 +300,7 @@ internal sealed class HamtElement<K, out V> {
                         else -> {
                             val newData = TArray<HamtElement<K, V>>(recalculatedMask.popCount)
                             recalculatedMask.forEachOneBit { bit ->
-                                val index = bit.numberOfLeadingZeros
+                                val index = bit.numberOfTrailingZeros
                                 newData[adjustIndex(recalculatedMask, index)] = tmpData[adjustIndex(tmpMask, index)]
                             }
                             Node(recalculatedMask, newData, size)
