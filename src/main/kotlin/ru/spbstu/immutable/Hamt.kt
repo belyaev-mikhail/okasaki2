@@ -24,7 +24,16 @@ internal sealed class HamtElement<K, out V> {
                  value: @UnsafeVariance V = this.value,
                  nextEntry: Entry<K, @UnsafeVariance V>? = this.nextEntry) = Entry(key, value, nextEntry)
 
-        operator fun plus(that: Entry<K, @UnsafeVariance V>): Entry<K, V> {
+        operator fun plus(that: Entry<K, @UnsafeVariance V>): Entry<K, V> =
+                when {
+                    that.nextEntry === null -> plusOne(that)
+                    else -> {
+                        var res = this
+                        for(e in that) res = res.plusOne(e)
+                        res
+                    }
+                }
+        fun plusOne(that: Entry<K, @UnsafeVariance V>): Entry<K, V> {
             if(null === nextEntry) { // shortcut for most common case
                 return when (key) {
                     that.key -> when (value) {
@@ -96,7 +105,7 @@ internal sealed class HamtElement<K, out V> {
                               override val size: Int): HamtElement<K, V>() {
         constructor(): this(IntBits.Zero, TArray(0), 0)
 
-        private fun adjustIndex(index: Int) = mask.slice(toExclusive = index).popCount
+        internal fun adjustIndex(index: Int) = mask.slice(toExclusive = index).popCount
 
         operator fun get(index: Int) = if(mask[index]) data[adjustIndex(index)] else null
         fun set(index: Int, element: HamtElement<K, @UnsafeVariance V>): Node<K, V> {
@@ -169,29 +178,30 @@ internal sealed class HamtElement<K, out V> {
     fun contains(key: K) = findEntry(0, key) != null
     fun getValue(key: K) = findEntry(0, key)?.value
 
-    internal fun insert(depth: Int, key: K, value: @UnsafeVariance V, hashBits: IntBits = hash(key)): HamtElement<K, V> =
+    internal fun insert(depth: Int, entry: Entry<K, @UnsafeVariance V>,
+                        hashBits: IntBits = hash(entry.key)): HamtElement<K, V> =
             when(this) {
                 is Entry -> {
-                    if(depth >= MAX_DEPTH) this + Entry(key, value)
+                    if(depth >= MAX_DEPTH) this + entry
                     else when (val existingHash = hash(this.key)) {
                         // do not recalculate all hashes down the line
                         // this covers both equal hashes and equal values
-                        hashBits -> this + Entry(key, value)
+                        hashBits -> this + entry
                         else -> Node<K, V>()
-                                .insert(depth, this.key, this.value, existingHash)
-                                .insert(depth, key, value, hashBits)
+                                .insert(depth, this, existingHash)
+                                .insert(depth, entry, hashBits)
                     }
                 }
                 is Node -> {
                     val index = hashBits.wordAt(depth, DIGITS).asInt()
                     when(val sub = this[index]) {
-                        null -> set(index, Entry(key, value))
-                        else -> set(index, sub.insert(depth + 1, key, value, hashBits))
+                        null -> set(index, entry)
+                        else -> set(index, sub.insert(depth + 1, entry, hashBits))
                     }
                 }
             }
 
-    fun insert(key: K, value: @UnsafeVariance V) = insert(0, key, value)
+    fun insert(key: K, value: @UnsafeVariance V) = insert(0, Entry(key, value))
 
     internal fun remove(depth: Int, key: K, hashBits: IntBits = hash(key)): HamtElement<K, V>? {
         return when(this) {
@@ -210,6 +220,39 @@ internal sealed class HamtElement<K, out V> {
     }
 
     fun removeKey(key: K) = remove(0, key)
+
+    internal fun union(depth: Int, element: HamtElement<K, @UnsafeVariance V>): HamtElement<K, V> {
+        if(element === this) return this
+        return when {
+            this is Entry && element is Node -> element.union(depth, this)
+            element is Entry -> insert(depth, element)
+            else -> { /* smart casts not powerful enough */
+                @Suppress(Warnings.UNCHECKED_CAST)
+                this as Node
+                @Suppress(Warnings.UNCHECKED_CAST)
+                element as Node
+
+                val totalMask = this.mask or element.mask
+                val newData = TArray<HamtElement<K, V>>(totalMask.popCount)
+                var size = 0
+                totalMask.forEachOneBit { bit ->
+                    val index = bit.numberOfLeadingZeros
+                    val thisE = this[index]
+                    val thatE = element[index]
+                    val adjustedIndex = totalMask.slice(toExclusive = index).popCount
+                    newData[adjustedIndex] = when {
+                        null === thisE -> thatE
+                        null === thatE -> thisE
+                        else -> thisE.union(depth + 1, thatE)
+                    }
+                    size += newData[adjustedIndex]!!.size
+                }
+                Node(totalMask, newData, size)
+            }
+        }
+    }
+
+    infix fun union(that: HamtElement<K, @UnsafeVariance V>) = union(0, that)
 }
 
 class HamtMap<K, out V>
@@ -230,6 +273,15 @@ internal constructor(private val root: HamtElement<K, V>? = null) : AbstractImmu
         get() = EntrySet()
     override fun put(key: K, value: @UnsafeVariance V): HamtMap<K, V> =
             HamtMap(root?.insert(key, value) ?: HamtElement.Entry(key, value))
+    override fun putAll(from: Map<K, @UnsafeVariance V>): ImmutableMap<K, V> = when(from) {
+        is HamtMap<K, V> -> when {
+            null === root -> from
+            null === from.root -> this
+            else -> HamtMap(root.union(from.root))
+        }
+        else -> super.putAll(from) as HamtMap<K, V>
+    }
+
     override fun remove(key: K): HamtMap<K, V> =
             HamtMap(root?.removeKey(key))
     override fun containsKey(key: K): Boolean = root?.contains(key) ?: false
@@ -247,10 +299,18 @@ fun <K, V> hamtMapOf(vararg entries: Pair<K, V>): HamtMap<K, V> {
 }
 
 class HamtSet<out E>
-internal constructor(private val root: HamtElement<@UnsafeVariance E, E>? = null) : AbstractImmutableSet<E>() {
+internal constructor(internal val root: HamtElement<@UnsafeVariance E, E>? = null) : AbstractImmutableSet<E>() {
     override fun contains(element: @UnsafeVariance E): Boolean = root?.contains(element) ?: false
     override fun add(element: @UnsafeVariance E): HamtSet<E> =
             HamtSet(root?.insert(element, element) ?: HamtElement.Entry(element, element))
+    override fun addAll(elements: Collection<@UnsafeVariance E>): HamtSet<E> = when(elements) {
+        is HamtSet<E> -> when {
+            null === root -> elements
+            null === elements.root -> this
+            else -> HamtSet(root.union(elements.root))
+        }
+        else -> super.addAll(elements) as HamtSet<E>
+    }
     override fun remove(element: @UnsafeVariance E): HamtSet<E> =
             HamtSet(root?.removeKey(element))
     override val size: Int
