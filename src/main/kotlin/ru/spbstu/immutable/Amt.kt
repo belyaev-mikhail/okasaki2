@@ -75,7 +75,7 @@ private data class Amt<out T, UnionType> internal constructor(
     }
 
     @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
-    private inline fun uarray(vararg elements: UnionType) = elements as Array<UnionType?>
+    private inline fun uarray(vararg elements: UnionType) = elements as Array<UnionType?> as UnionType
 
     @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
     private inline fun T.asUnion() = this as UnionType
@@ -111,7 +111,7 @@ private data class Amt<out T, UnionType> internal constructor(
     }
 
     private fun add(size: Int, data: Array<UnionType?>, value: T, depth: Int): UnionType = run {
-        if (isPow32(size)) return uarray(data.asUnion(), value.asUnion()).asUnion() // nothing else we can do
+        if (isPow32(size)) return uarray(data.asUnion(), value.asUnion()) // nothing else we can do
 
         val lastChildSize = size % pow32(log32floor(size))
         if (lastChildSize == 0) {
@@ -121,7 +121,7 @@ private data class Amt<out T, UnionType> internal constructor(
         val lastChild = data[data.lastIndex]
         val sub = lastChild.visit(
                 onArray = { add(lastChildSize, it, value, depth - 1) },
-                onValue = { uarray(it.asUnion(), value.asUnion()).asUnion() }
+                onValue = { uarray(it.asUnion(), value.asUnion()) }
         )
         return data.copyOf().also { it[data.lastIndex] = sub }.asUnion()
     }
@@ -129,7 +129,7 @@ private data class Amt<out T, UnionType> internal constructor(
     fun add(value: @UnsafeVariance T): Amt<T, UnionType> {
         val newData = data.visit(
                 onArray = { add(size, it, value, depth) },
-                onValue = { uarray(it.asUnion(), value.asUnion()).asUnion() }
+                onValue = { uarray(it.asUnion(), value.asUnion()) }
         )
         return copy(data = newData, size = size + 1);
     }
