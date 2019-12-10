@@ -8,40 +8,45 @@ import kotlin.math.log2
 private const val DIGITS = 5
 private const val MAX_DEPTH = 6
 
-@UseExperimental(ExperimentalStdlibApi::class)
-private fun log2floor(value: Int) = 31 - value.countLeadingZeroBits()
-@UseExperimental(ExperimentalStdlibApi::class)
-private fun log2ceil(value: Int) = 32 - (value - 1).countLeadingZeroBits()
+const val POW_32_0 = 1
+const val POW_32_1 = 32
+const val POW_32_2 = POW_32_1 * 32
+const val POW_32_3 = POW_32_2 * 32
+const val POW_32_4 = POW_32_3 * 32
+const val POW_32_5 = POW_32_4 * 32
+const val POW_32_6 = POW_32_5 * 32
+
 private fun isPow32(value: Int) = value.asBits().run { popCount == 1 && numberOfTrailingZeros % 5 == 0 }
-private fun log32floor(value: Int) = log2floor(value) / 5
-private fun log32ceil(value: Int) = log32floor(value) + if(isPow32(value)) 0 else 1
+private fun log32floor(value: Int) = when {
+    value < POW_32_3 -> when {
+        value < POW_32_1 -> POW_32_0
+        value < POW_32_2 -> POW_32_1
+        else -> POW_32_2
+    }
+    value < POW_32_6 -> when {
+        value < POW_32_4 -> POW_32_3
+        value < POW_32_5 -> POW_32_4
+        else -> POW_32_5
+    }
+    else -> POW_32_6
+}
+private fun log32ceil(value: Int) = when {
+    value > POW_32_3 -> when {
+        value > POW_32_5 -> POW_32_6
+        value > POW_32_4 -> POW_32_5
+        else -> POW_32_4
+    }
+    value > POW_32_0 -> when {
+        value > POW_32_2 -> POW_32_3
+        value > POW_32_1 -> POW_32_2
+        else -> POW_32_1
+    }
+    else -> POW_32_0
+}
 private fun pow32(value: Int) = 1 shl (value * 5)
 
-private infix fun Int.divCeil(rhv: Int) = (this / rhv) + if(this % rhv != 0) 1 else 0
-
-internal sealed class AmtElement<out E> {
-    abstract operator fun iterator(): Iterator<E>
-
-    class Node<out E>(size: Int = Int.SIZE_BITS): AmtElement<E>() {
-        private val data: TArray<AmtElement<E>> = TArray(size)
-
-        override fun iterator(): Iterator<E> = iterator<E> {
-            for(sub in data) {
-                if(null === sub) break
-                yieldAll(sub.iterator())
-            }
-        }
-    }
-    class Leaf<out E>(size: Int = Int.SIZE_BITS): AmtElement<E>() {
-        private val data: TArray<E> = TArray(size)
-
-        override fun iterator(): Iterator<E> = iterator<E> {
-            for(e in data) {
-                if (null === e) break
-                yield(e)
-            }
-        }
-    }
+private inline fun boundCheck(condition: Boolean, message: () -> String) {
+    if(!condition) throw IndexOutOfBoundsException(message())
 }
 
 typealias Buffer = Array<Any?>
@@ -54,7 +59,7 @@ data class Amt<out T>(
 ) {
     val depth get() = log32ceil(size) - 1 // do this better
 
-    @Suppress(Warnings.UNCHECKED_CAST)
+    @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
     private inline fun Any?.asEither(): Either<Buffer, T> = when(this) {
         is Array<*> -> Either.left(this as Buffer)
         else -> Either.right(this as T)
@@ -63,37 +68,27 @@ data class Amt<out T>(
     private fun get(data: Buffer, index: IntBits, depth: Int): T = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val next = data[actual]
-        when (next.asEither()) {
-
-            !is Array<*> -> next as T
-            else -> get(next as Buffer, index, depth - 1)
-        }
+        next.asEither().mapLeft { get(it, index, depth - 1) }.value
     }
 
-    operator fun get(index: Int): T {
-        require(0 <= index && index < size)
-        return when(data) {
-            is Array<*> -> get(data as Buffer, index.asBits(), depth)
-            else -> data as T
-        }
+    operator fun get(index: Int): T = run {
+        boundCheck(0 <= index && index < size) { "get($index)" }
+        data.asEither().mapLeft { get(it, index.asBits(), depth) }.value
     }
 
     private fun set(data: Buffer, index: IntBits, value: T, depth: Int): Buffer = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val sub = data[actual]
-        val next: Any? = when (sub) {
-            !is Array<*> -> value
-            else -> set(sub as Buffer, index, value, depth - 1)
-        }
+        val next = sub.asEither().mapLeft { set(it, index, value, depth - 1) }.value
         data.copyOf().also { it[actual] = next }
     }
 
     fun set(index: Int, value: @UnsafeVariance T): Amt<T> {
-        require(0 <= index && index < size)
-        return when(data) {
-            is Array<*> -> copy(data = set(data as Buffer, index.asBits(), value, depth))
-            else -> copy(data = value)
-        }
+        boundCheck(0 <= index && index < size) { "set($index)" }
+        return data.asEither().visit(
+                { buffer -> copy(data = set(buffer, index.asBits(), value, depth)) },
+                { value -> copy(data = value) }
+        )
     }
 
     private fun add(size: Int, data: Buffer, value: T, depth: Int): Buffer = run {
@@ -105,38 +100,33 @@ data class Amt<out T>(
         }
 
         val lastChild = data[data.lastIndex]
-        val sub = when (lastChild) {
-            is Array<*> -> {
-                add(lastChildSize, lastChild as Buffer, value, depth - 1)
-            }
-            else -> {
-                arrayOf<Any?>(lastChild, value)
-            }
-        }
-
+        val sub = lastChild.asEither().visit(
+                { add(lastChildSize, it, value, depth - 1) },
+                { arrayOf<Any?>(it, value) }
+        )
         return data.copyOf().also { it[data.lastIndex] = sub }
     }
 
     fun add(value: @UnsafeVariance T): Amt<T> {
-        return when(data) {
-            is Array<*> -> copy(data = add(size, data as Buffer, value, depth), size = size + 1)
-            else -> copy(data = arrayOf(data, value), size = size + 1)
-        }
+        return data.asEither().visit(
+                { copy(data = add(size, it, value, depth), size = size + 1) },
+                { copy(data = arrayOf<Any?>(it, value), size = size + 1) }
+        )
     }
 
     private suspend fun SequenceScope<T>.forEach(value: Buffer, body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
-        for(e in value) when(e) {
-            is Array<*> -> forEach(e as Buffer, body)
-            else -> body(e as T)
-        }
+        for(e in value) e.asEither().visit(
+                { forEach(it, body) },
+                { body(it) }
+        )
     }
 
     private suspend fun SequenceScope<T>.forEach(body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
-        when {
-            size == 0 -> return
-            data is Array<*> -> forEach(data as Buffer, body)
-            else -> body(data as T)
-        }
+        if(size == 0) return
+        data.asEither().visit(
+                { forEach(it, body) },
+                { body(it) }
+        )
     }
 
     operator fun iterator() = iterator<T> {
