@@ -2,8 +2,6 @@ package ru.spbstu.immutable
 
 import kotlinx.warnings.Warnings
 import ru.spbstu.wheels.*
-import kotlin.math.ceil
-import kotlin.math.log2
 
 private const val DIGITS = 5
 private const val MAX_DEPTH = 6
@@ -19,111 +17,131 @@ const val POW_32_6 = POW_32_5 * 32
 private fun isPow32(value: Int) = value.asBits().run { popCount == 1 && numberOfTrailingZeros % 5 == 0 }
 private fun log32floor(value: Int) = when {
     value < POW_32_3 -> when {
-        value < POW_32_1 -> POW_32_0
-        value < POW_32_2 -> POW_32_1
-        else -> POW_32_2
+        value < POW_32_1 -> 0
+        value < POW_32_2 -> 1
+        else -> 2
     }
     value < POW_32_6 -> when {
-        value < POW_32_4 -> POW_32_3
-        value < POW_32_5 -> POW_32_4
-        else -> POW_32_5
+        value < POW_32_4 -> 3
+        value < POW_32_5 -> 4
+        else -> 5
     }
-    else -> POW_32_6
+    else -> 6
 }
+
 private fun log32ceil(value: Int) = when {
     value > POW_32_3 -> when {
-        value > POW_32_5 -> POW_32_6
-        value > POW_32_4 -> POW_32_5
-        else -> POW_32_4
+        value > POW_32_5 -> 6
+        value > POW_32_4 -> 5
+        else -> 4
     }
     value > POW_32_0 -> when {
-        value > POW_32_2 -> POW_32_3
-        value > POW_32_1 -> POW_32_2
-        else -> POW_32_1
+        value > POW_32_2 -> 3
+        value > POW_32_1 -> 2
+        else -> 1
     }
-    else -> POW_32_0
+    else -> 0
 }
+
 private fun pow32(value: Int) = 1 shl (value * 5)
 
 private inline fun boundCheck(condition: Boolean, message: () -> String) {
-    if(!condition) throw IndexOutOfBoundsException(message())
+    if (!condition) throw IndexOutOfBoundsException(message())
 }
 
 typealias Buffer = Array<Any?>
 
 private fun Buffer.immPush(element: Any?) = copyOf(size + 1).also { it[size] = element }
 
-data class Amt<out T>(
+private data class Amt<out T, UnionType>(
         val size: Int = 0,
-        val data: Any? = null
+        val data: UnionType? = null
 ) {
     val depth get() = log32ceil(size) - 1 // do this better
 
     @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
-    private inline fun Any?.asEither(): Either<Buffer, T> = when(this) {
-        is Array<*> -> Either.left(this as Buffer)
-        else -> Either.right(this as T)
+    private inline fun <R> UnionType?.visit(onArray: (Array<UnionType?>) -> R,
+                                            onValue: (T) -> R): R = when (this) {
+        is Array<*> -> onArray(this as Array<UnionType?>)
+        else -> onValue(this as T)
     }
 
-    private fun get(data: Buffer, index: IntBits, depth: Int): T = run {
+    @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
+    private inline fun UnionType?.visit(onArray: (Array<UnionType?>) -> T): T = when (this) {
+        is Array<*> -> onArray(this as Array<UnionType?>)
+        else -> this as T
+    }
+
+    @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
+    private inline fun uarray(vararg elements: UnionType) = elements as Array<UnionType?>
+
+    @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
+    private inline fun T.asUnion() = this as UnionType
+
+    @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
+    private inline fun Array<UnionType?>.asUnion() = this as UnionType
+
+    private fun get(data: Array<UnionType?>, index: IntBits, depth: Int): T = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val next = data[actual]
-        next.asEither().mapLeft { get(it, index, depth - 1) }.value
+        next.visit { get(it, index, depth - 1) }
     }
 
     operator fun get(index: Int): T = run {
         boundCheck(0 <= index && index < size) { "get($index)" }
-        data.asEither().mapLeft { get(it, index.asBits(), depth) }.value
+        data.visit { get(it, index.asBits(), depth) }
     }
 
-    private fun set(data: Buffer, index: IntBits, value: T, depth: Int): Buffer = run {
+    private fun set(data: Array<UnionType?>, index: IntBits, value: T, depth: Int): Array<UnionType?> = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val sub = data[actual]
-        val next = sub.asEither().mapLeft { set(it, index, value, depth - 1) }.value
+        val next = sub.visit({ set(it, index, value, depth - 1).asUnion() }, { it.asUnion() })
         data.copyOf().also { it[actual] = next }
     }
 
-    fun set(index: Int, value: @UnsafeVariance T): Amt<T> {
+    fun set(index: Int, value: @UnsafeVariance T): Amt<T, UnionType> {
         boundCheck(0 <= index && index < size) { "set($index)" }
-        return data.asEither().visit(
-                { buffer -> copy(data = set(buffer, index.asBits(), value, depth)) },
-                { value -> copy(data = value) }
+        val newData = data.visit(
+                onArray = { set(it, index.asBits(), value, depth).asUnion() },
+                onValue = { it.asUnion() }
         )
+        return copy(data = newData)
     }
 
-    private fun add(size: Int, data: Buffer, value: T, depth: Int): Buffer = run {
-        if(isPow32(size)) return arrayOf<Any?>(data, value) // nothing else we can do
+    private fun add(size: Int, data: Array<UnionType?>, value: T, depth: Int): Array<UnionType?> = run {
+        if (isPow32(size)) return uarray(data.asUnion(), value.asUnion()) // nothing else we can do
 
         val lastChildSize = size % pow32(log32floor(size))
-        if(lastChildSize == 0) {
-            return data.copyOf(data.size + 1).also { it[data.size] = value }
+        if (lastChildSize == 0) {
+            return data.copyOf(data.size + 1).also { it[data.size] = value.asUnion() }
         }
 
         val lastChild = data[data.lastIndex]
-        val sub = lastChild.asEither().visit(
-                { add(lastChildSize, it, value, depth - 1) },
-                { arrayOf<Any?>(it, value) }
+        val sub = lastChild.visit(
+                onArray = { add(lastChildSize, it, value, depth - 1) },
+                onValue = { uarray(it.asUnion(), value.asUnion()) }
         )
-        return data.copyOf().also { it[data.lastIndex] = sub }
+        return data.copyOf().also { it[data.lastIndex] = sub.asUnion() }
     }
 
-    fun add(value: @UnsafeVariance T): Amt<T> {
-        return data.asEither().visit(
-                { copy(data = add(size, it, value, depth), size = size + 1) },
-                { copy(data = arrayOf<Any?>(it, value), size = size + 1) }
+    fun add(value: @UnsafeVariance T): Amt<T, UnionType> {
+        val newData = data.visit(
+                onArray = { add(size, it, value, depth) },
+                onValue = { uarray(it.asUnion(), value.asUnion()) }
         )
+        return copy(data = newData.asUnion(), size = size + 1);
     }
 
-    private suspend fun SequenceScope<T>.forEach(value: Buffer, body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
-        for(e in value) e.asEither().visit(
+    private suspend fun SequenceScope<T>.forEach(value: Array<UnionType?>, body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
+        for (e in value) e.visit(
                 { forEach(it, body) },
                 { body(it) }
         )
     }
 
     private suspend fun SequenceScope<T>.forEach(body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
-        if(size == 0) return
-        data.asEither().visit(
+        if (size == 0) return
+        data.visit(
                 { forEach(it, body) },
                 { body(it) }
         )
@@ -135,8 +153,10 @@ data class Amt<out T>(
 
 }
 
+private typealias Amtt<T> = Amt<T, Any?>
+
 fun main() {
-    val a = Amt<Int>(1, 2)
+    val a = Amt<Int, Any?>(1, 2)
 
     val b = a.add(3)
 
@@ -144,14 +164,14 @@ fun main() {
 
     println(c)
     var d = c
-    for(i in 5..34) d = d.add(i)
+    for (i in 5..34) d = d.add(i)
 
     val e = d.add(35)
 
     var f = e
-    for(i in 36..1028) f = f.add(i)
+    for (i in 36..1028) f = f.add(i)
 
     println(f)
 
-    for(i in f) println(i)
+    for (i in f) println(i)
 }
