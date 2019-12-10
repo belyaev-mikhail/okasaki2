@@ -53,11 +53,13 @@ typealias Buffer = Array<Any?>
 
 private fun Buffer.immPush(element: Any?) = copyOf(size + 1).also { it[size] = element }
 
-private data class Amt<out T, UnionType>(
-        val size: Int = 0,
-        val data: UnionType? = null
+private data class Amt<out T, UnionType> internal constructor(
+        val size: Int,
+        val data: UnionType?
 ) {
-    val depth get() = log32ceil(size) - 1 // do this better
+    constructor(): this(0, null)
+
+    private val depth get() = log32ceil(size) - 1 // do this better
 
     @Suppress(Warnings.UNCHECKED_CAST, Warnings.NOTHING_TO_INLINE)
     private inline fun <R> UnionType?.visit(onArray: (Array<UnionType?>) -> R,
@@ -92,44 +94,44 @@ private data class Amt<out T, UnionType>(
         data.visit { get(it, index.asBits(), depth) }
     }
 
-    private fun set(data: Array<UnionType?>, index: IntBits, value: T, depth: Int): Array<UnionType?> = run {
+    private fun set(data: Array<UnionType?>, index: IntBits, value: T, depth: Int): UnionType = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val sub = data[actual]
-        val next = sub.visit({ set(it, index, value, depth - 1).asUnion() }, { it.asUnion() })
-        data.copyOf().also { it[actual] = next }
+        val next = sub.visit({ set(it, index, value, depth - 1) }, { it.asUnion() })
+        data.copyOf().also { it[actual] = next }.asUnion()
     }
 
     fun set(index: Int, value: @UnsafeVariance T): Amt<T, UnionType> {
         boundCheck(0 <= index && index < size) { "set($index)" }
         val newData = data.visit(
-                onArray = { set(it, index.asBits(), value, depth).asUnion() },
+                onArray = { set(it, index.asBits(), value, depth) },
                 onValue = { it.asUnion() }
         )
         return copy(data = newData)
     }
 
-    private fun add(size: Int, data: Array<UnionType?>, value: T, depth: Int): Array<UnionType?> = run {
-        if (isPow32(size)) return uarray(data.asUnion(), value.asUnion()) // nothing else we can do
+    private fun add(size: Int, data: Array<UnionType?>, value: T, depth: Int): UnionType = run {
+        if (isPow32(size)) return uarray(data.asUnion(), value.asUnion()).asUnion() // nothing else we can do
 
         val lastChildSize = size % pow32(log32floor(size))
         if (lastChildSize == 0) {
-            return data.copyOf(data.size + 1).also { it[data.size] = value.asUnion() }
+            return data.copyOf(data.size + 1).also { it[data.size] = value.asUnion() }.asUnion()
         }
 
         val lastChild = data[data.lastIndex]
         val sub = lastChild.visit(
                 onArray = { add(lastChildSize, it, value, depth - 1) },
-                onValue = { uarray(it.asUnion(), value.asUnion()) }
+                onValue = { uarray(it.asUnion(), value.asUnion()).asUnion() }
         )
-        return data.copyOf().also { it[data.lastIndex] = sub.asUnion() }
+        return data.copyOf().also { it[data.lastIndex] = sub }.asUnion()
     }
 
     fun add(value: @UnsafeVariance T): Amt<T, UnionType> {
         val newData = data.visit(
                 onArray = { add(size, it, value, depth) },
-                onValue = { uarray(it.asUnion(), value.asUnion()) }
+                onValue = { uarray(it.asUnion(), value.asUnion()).asUnion() }
         )
-        return copy(data = newData.asUnion(), size = size + 1);
+        return copy(data = newData, size = size + 1);
     }
 
     private suspend fun SequenceScope<T>.forEach(value: Array<UnionType?>, body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
