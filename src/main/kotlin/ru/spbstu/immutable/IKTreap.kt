@@ -28,12 +28,12 @@ private data class IKTreapNode<out E> private constructor(
         index < currentIndex -> {
             left ?: throw IndexOutOfBoundsException()
             val (ll, le, lr) = left.split(index)
-            Triple(ll, le, lr merge right)
+            Triple(ll, le, copy(left = lr))
         }
         else -> /* index > currentIndex */ {
             right ?: throw IndexOutOfBoundsException()
-            val (rl, re, rr) = right.split(index - currentIndex)
-            Triple(left merge rl, re, rr)
+            val (rl, re, rr) = right.split(index - currentIndex - 1)
+            Triple(copy(right = rl), re, rr)
         }
     }
 }
@@ -62,7 +62,7 @@ private fun <E> IKTreapNode<E>?.get(index: Int): E = when {
     null === this -> throw IndexOutOfBoundsException()
     index == currentIndex -> value
     index < currentIndex -> left.get(index)
-    else /* index > currentIndex */ -> right.get(index - currentIndex)
+    else /* index > currentIndex */ -> right.get(index - currentIndex - 1)
 }
 
 private fun <E> IKTreapNode<E>?.set(index: Int, value: E): IKTreapNode<E>? = when {
