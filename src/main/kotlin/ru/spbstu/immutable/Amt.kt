@@ -45,6 +45,8 @@ private fun log32ceil(value: Int) = when {
 
 private fun pow32(value: Int) = 1 shl (value * 5)
 
+private inline infix fun Int.divCeil(that: Int) = (this / that) + if(this % that == 0) 0 else 1
+
 private inline fun boundCheck(condition: Boolean, message: () -> String) {
     if (!condition) throw IndexOutOfBoundsException(message())
 }
@@ -57,7 +59,7 @@ private data class Amt<out T, UnionType> internal constructor(
         val size: Int,
         val data: UnionType?
 ) {
-    constructor(): this(0, null)
+    constructor() : this(0, null)
 
     private val depth get() = log32ceil(size) - 1 // do this better
 
@@ -86,7 +88,10 @@ private data class Amt<out T, UnionType> internal constructor(
     private fun get(data: Array<UnionType?>, index: IntBits, depth: Int): T = run {
         val actual = index.wordAt(depth, DIGITS).asInt()
         val next = data[actual]
-        next.visit { get(it, index, depth - 1) }
+        next.visit(
+                onArray = { get(it, index, depth - 1) },
+                onValue = { if (depth == 0) it else get(data, index, 0) }
+        )
     }
 
     operator fun get(index: Int): T = run {
@@ -134,6 +139,43 @@ private data class Amt<out T, UnionType> internal constructor(
         return copy(data = newData, size = size + 1);
     }
 
+    fun allocateEmpty(newSize: Int): UnionType? = when {
+        newSize == 1 -> null
+        isPow32(newSize) -> Array<Any?>(32) { allocateEmpty(newSize / 32) } as UnionType
+        else -> {
+            val chunkSize = pow32(log32floor(size))
+            val fullChunks = newSize / chunkSize
+            val tail = newSize % chunkSize
+            val arr = arrayOfNulls<Any?>(fullChunks + if(tail != 0) 1 else 0)
+            for (i in 0 until fullChunks) arr[i] = allocateEmpty(chunkSize)
+            if(tail != 0) arr[arr.lastIndex] = allocateEmpty(tail)
+            arr as UnionType
+        }
+    }
+
+    fun allocate(newSize: Int, size: Int, data: Array<UnionType?>, depth: Int): UnionType = run {
+        if(newSize == size) return data.asUnion()
+
+        val upper = pow32(log32ceil(size))
+        if(newSize >= upper) {
+            val adaptedSize = minOf(upper * 32, newSize)
+            val fullChunks = adaptedSize / upper
+            val tail = adaptedSize % upper
+            val roundup = allocate(upper, size, data, depth)
+            val up = arrayOfNulls<Any?>(fullChunks + if(tail != 0) 1 else 0)
+            up[0] = roundup
+            for(i in 1 until fullChunks) up[i] = allocateEmpty(upper)
+            if(tail != 0) up[up.lastIndex] = allocateEmpty(tail)
+            allocate(newSize, adaptedSize, up as Array<UnionType?>, depth)
+        } else {
+            for(i in 0..data.lastIndex) {
+                TODO()
+            }
+            TODO()
+        }
+
+    }
+
     private suspend fun SequenceScope<T>.forEach(value: Array<UnionType?>, body: suspend SequenceScope<@UnsafeVariance T>.(T) -> Unit) {
         for (e in value) e.visit(
                 { forEach(it, body) },
@@ -175,5 +217,6 @@ fun main() {
 
     println(f)
 
-    for (i in f) println(i)
+    check(f.iterator().asSequence().toList() == (2..1028).toList())
+    check((0 until f.size).map { f[it] } == (2..1028).toList())
 }

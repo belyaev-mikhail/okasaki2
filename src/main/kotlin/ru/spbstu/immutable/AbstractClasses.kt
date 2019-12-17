@@ -3,10 +3,15 @@ package ru.spbstu.immutable
 abstract class AbstractImmutableList<out E> : AbstractList<E>(), ImmutableList<E> {
 
     abstract override fun add(index: Int, element: @UnsafeVariance E): ImmutableList<E>
-    abstract override fun remove(element: @UnsafeVariance E): ImmutableList<E>
+
     abstract override fun removeAt(index: Int): ImmutableList<E>
+
+    override fun remove(element: @UnsafeVariance E): ImmutableList<E> = when(val index = indexOf(element)) {
+        -1 -> this
+        else -> removeAt(index)
+    }
+
     abstract override fun set(index: kotlin.Int, element: @UnsafeVariance E): ImmutableList<E>
-    abstract override fun subList(fromIndex: kotlin.Int, toIndex: kotlin.Int): ImmutableList<E>
 
     override fun add(element: @UnsafeVariance E): ImmutableList<E> = add(size, element)
     override fun addAll(index: Int, elements: Collection<@UnsafeVariance E>): ImmutableList<E> {

@@ -12,7 +12,6 @@ interface ImmutableList<out E> : List<E> {
     fun removeAll(elements: Collection<@UnsafeVariance E>): ImmutableList<E>
     fun removeAt(index: Int): ImmutableList<E>
     fun set(index: Int, element: @UnsafeVariance E): ImmutableList<E>
-    override fun subList(fromIndex: Int, toIndex: Int): ImmutableList<E>
 }
 
 inline operator fun <E> ImmutableList<E>.plus(value: E): ImmutableList<E> = add(value)
