@@ -52,6 +52,8 @@ class HamtSetTest {
 
         assertEquals(600, b.size)
         assertEquals((1..600).mapTo(mutableSetOf(), ::Collider) as Set<Collider>, b)
+
+        assertEquals(((1..498) + (500..600)).mapTo(mutableSetOf(), ::Collider) as Set<Collider>, b - Collider(499))
     }
 
     @Test
