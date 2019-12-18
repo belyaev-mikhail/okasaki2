@@ -334,6 +334,9 @@ internal constructor(private val root: HamtElement<K, V>? = null) : AbstractImmu
 
     override val entries: Set<Map.Entry<K, V>>
         get() = EntrySet()
+
+    override fun get(key: K): V? =
+            root?.getValue(key)
     override fun put(key: K, value: @UnsafeVariance V): HamtMap<K, V> =
             HamtMap(root?.insert(key, value) ?: HamtElement.Entry(key, value))
     override fun putAll(from: Map<K, @UnsafeVariance V>): ImmutableMap<K, V> = when(from) {

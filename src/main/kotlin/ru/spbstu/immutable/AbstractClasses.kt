@@ -1,53 +1,21 @@
 package ru.spbstu.immutable
 
 abstract class AbstractImmutableList<out E> : AbstractList<E>(), ImmutableList<E> {
-
+    abstract override fun get(index: Int): E
+    abstract override fun set(index: Int, element: @UnsafeVariance E): ImmutableList<E>
     abstract override fun add(index: Int, element: @UnsafeVariance E): ImmutableList<E>
-
     abstract override fun removeAt(index: Int): ImmutableList<E>
-
-    override fun remove(element: @UnsafeVariance E): ImmutableList<E> = when(val index = indexOf(element)) {
-        -1 -> this
-        else -> removeAt(index)
-    }
-
-    abstract override fun set(index: kotlin.Int, element: @UnsafeVariance E): ImmutableList<E>
-
-    override fun add(element: @UnsafeVariance E): ImmutableList<E> = add(size, element)
-    override fun addAll(index: Int, elements: Collection<@UnsafeVariance E>): ImmutableList<E> {
-        var current: ImmutableList<E> = this
-        for((i, e) in elements.withIndex()) current = current.add(index + i, e)
-        return current
-    }
-    override fun addAll(elements: Collection<@UnsafeVariance E>): ImmutableList<E> = addAll(size, elements)
-
-    override fun removeAll(elements: Collection<@UnsafeVariance E>): ImmutableList<E> {
-        var current: ImmutableList<E>  = this
-        for(e in elements) current = current.remove(e)
-        return current
-    }
 }
 
 abstract class AbstractImmutableSet<out E> : AbstractSet<E>(), ImmutableSet<E> {
     abstract override fun contains(element: @UnsafeVariance E): Boolean
     abstract override fun add(element: @UnsafeVariance E): ImmutableSet<E>
     abstract override fun remove(element: @UnsafeVariance E): ImmutableSet<E>
-
-    override fun addAll(elements: Collection<@UnsafeVariance E>): ImmutableSet<E> {
-        var self: ImmutableSet<E> = this
-        for(e in elements) self = self.add(e)
-        return self
-    }
-    override fun removeAll(elements: Collection<@UnsafeVariance E>): ImmutableSet<E> {
-        var self: ImmutableSet<E> = this
-        for(e in elements) self = self.remove(e)
-        return self
-    }
-    override fun retainAll(elements: Collection<@UnsafeVariance E>): ImmutableSet<E> {
-        var self: ImmutableSet<E> = immutableSetOf()
-        for(e in elements) if(e in this) self = self.add(e)
-        return self
-    }
 }
 
-abstract class AbstractImmutableMap<K, out V> : AbstractMap<K, V>(), ImmutableMap<K, V>
+abstract class AbstractImmutableMap<K, out V> : AbstractMap<K, V>(), ImmutableMap<K, V> {
+    abstract override fun containsKey(key: K): Boolean
+    abstract override fun get(key: K): V?
+    abstract override fun put(key: K, value: @UnsafeVariance V): ImmutableMap<K, V>
+    abstract override fun remove(key: K): ImmutableMap<K, V>
+}

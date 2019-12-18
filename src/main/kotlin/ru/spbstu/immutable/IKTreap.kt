@@ -41,14 +41,15 @@ private data class IKTreapNode<out E> private constructor(
 private fun <E> IKTreapNode<E>?.add(element: E, random: Random = Random.Default) =
         this merge IKTreapNode(element, random = random)
 
-private fun <E> IKTreapNode<E>?.insertAt(index: Int, node: IKTreapNode<E>?): IKTreapNode<E>? = when {
+private fun <E> IKTreapNode<E>?.insertAt(index: Int, node: IKTreapNode<E>?,
+                                         random: Random = Random.Default): IKTreapNode<E>? = when {
     null === this -> node
     null === node -> this
     index == 0 -> node merge this
     index == this.size -> this merge node
     else -> {
         val (l, e, r) = this.split(index)
-        l merge node merge IKTreapNode(e) merge r
+        l merge node merge IKTreapNode(e, random = random) merge r
     }
 }
 
@@ -65,12 +66,12 @@ private fun <E> IKTreapNode<E>?.get(index: Int): E = when {
     else /* index > currentIndex */ -> right.get(index - currentIndex - 1)
 }
 
-private fun <E> IKTreapNode<E>?.set(index: Int, value: E): IKTreapNode<E>? = when {
+private fun <E> IKTreapNode<E>?.set(index: Int, value: E, random: Random = Random.Default): IKTreapNode<E>? = when {
     null === this -> null
     index == currentIndex -> copy(value = value)
     else -> {
         val (l, _, r) = this.split(index)
-        l merge IKTreapNode(value) merge r
+        l merge IKTreapNode(value, random = random) merge r
     }
 }
 
@@ -81,25 +82,23 @@ private fun <E> IKTreapNode<E>?.iterator(): Iterator<E> = iterator builder@ {
     yieldAll(right.iterator())
 }
 
-class IKTreap<out E> private constructor(private val root: IKTreapNode<E>?): AbstractImmutableList<E>() {
-    companion object {
-        val random = Random.Default
-    }
-
-    constructor(): this(null)
+class IKTreap<out E> private constructor(
+        private val root: IKTreapNode<E>?,
+        private val random: Random = Random.Default): AbstractImmutableList<E>() {
+    constructor(random: Random = Random.Default): this(null, random)
 
     override fun iterator(): Iterator<E> = root.iterator()
 
     override fun add(element: @UnsafeVariance E): IKTreap<E> =
-            IKTreap(root.add(element, random = random))
+            IKTreap(root.add(element, random = random), random = random)
     override fun add(index: Int, element: @UnsafeVariance E): IKTreap<E> =
-            IKTreap(root.insertAt(index, IKTreapNode(element, random = random)))
+            IKTreap(root.insertAt(index, IKTreapNode(element, random = random)), random = random)
 
     override fun removeAt(index: Int): IKTreap<E> =
-            IKTreap(root.removeAt(index))
+            IKTreap(root.removeAt(index), random = random)
 
     override fun set(index: Int, element: @UnsafeVariance E): IKTreap<E> =
-            IKTreap(root.set(index, element))
+            IKTreap(root.set(index, element, random = random), random = random)
 
     override val size: Int
         get() = root?.size ?: 0
@@ -108,18 +107,18 @@ class IKTreap<out E> private constructor(private val root: IKTreapNode<E>?): Abs
             root.get(index)
 
     override fun addAll(elements: Collection<@UnsafeVariance E>): ImmutableList<E> = when(elements) {
-        is IKTreap -> IKTreap(root merge elements.root)
+        is IKTreap -> IKTreap(root merge elements.root, random = random)
         else -> super.addAll(elements)
     }
 
     override fun addAll(index: Int, elements: Collection<@UnsafeVariance E>): ImmutableList<E> = when(elements) {
-        is IKTreap -> IKTreap(root.insertAt(index, elements.root))
+        is IKTreap -> IKTreap(root.insertAt(index, elements.root, random = random), random = random)
         else -> super.addAll(index, elements)
     }
 }
 
-fun <E> ikTreapOf(vararg values: E): IKTreap<E> {
-    var base = IKTreap<E>()
+fun <E> ikTreapOf(vararg values: E, random: Random = Random.Default): IKTreap<E> {
+    var base = IKTreap<E>(random = random)
     for(value in values) base = base.add(value)
     return base
 }
