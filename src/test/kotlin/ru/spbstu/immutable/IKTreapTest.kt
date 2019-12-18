@@ -56,4 +56,18 @@ class IKTreapTest {
         doIt(42)
         doIt(Int.MAX_VALUE - 1)
     }
+
+    @Test
+    fun biggyTest() {
+        fun doIt(seed: Int) {
+            val kk = ikTreapOf<Int>(random = Random(seed)) + (0..10000000).toList()
+
+            val kkk = kk + kk
+            assertEquals(3, kkk[10000004])
+        }
+
+        doIt(0)
+        doIt(42)
+        doIt(Int.MAX_VALUE - 1)
+    }
 }
