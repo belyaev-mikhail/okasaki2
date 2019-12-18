@@ -24,6 +24,12 @@ class HamtSetTest {
         assertEquals(9, b.size)
         for(e in 1..9) assert(e in b)
 
+        val bb = a.addAll(listOf(6, 7, 8, 9))
+
+        assertEquals(setOf(1, 2, 3, 4, 5, 6, 7, 8, 9), bb)
+        assertEquals(9, bb.size)
+        for(e in 1..9) assert(e in bb)
+
         assertEquals(setOf(1, 2, 3, 4, 5), a)
 
         val c = a + hamtSetOf(4, 5, 6, 7)
