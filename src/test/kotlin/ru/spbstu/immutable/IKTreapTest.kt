@@ -60,10 +60,10 @@ class IKTreapTest {
     @Test
     fun biggyTest() {
         fun doIt(seed: Int) {
-            val kk = ikTreapOf<Int>(random = Random(seed)) + (0..10000000).toList()
+            val kk = ikTreapOf<Int>(random = Random(seed)) + (0..1000000).toList()
 
             val kkk = kk + kk
-            assertEquals(3, kkk[10000004])
+            assertEquals(3, kkk[1000004])
         }
 
         doIt(0)

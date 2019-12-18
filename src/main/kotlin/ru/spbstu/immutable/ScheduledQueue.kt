@@ -65,3 +65,5 @@ class ScheduledQueue<E> private constructor(
 
     override fun toString() = "ScheduledQueue($inputs><$outputs)"
 }
+
+fun <E> immutableQueue(): ImmutableQueue<E> = ScheduledQueue()
