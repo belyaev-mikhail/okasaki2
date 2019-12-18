@@ -24,6 +24,9 @@ class IKTreapTest {
             assertEquals((1..5).toList(), kk.removeAt(kk.lastIndex))
             assertEquals((1..3) + (5..6), kk.removeAt(3))
 
+            assertEquals((4..6).toList(), kk - (1..3).toList())
+            assertEquals((4..6).toList(), kk - ikTreapOf(1,2,3,random = Random(seed)))
+
             assertEquals(listOf(1, 2, 3, 7, 4, 5, 6), kk.add(3, 7))
             assertEquals(listOf(1, 2, 3, 7, 8, 9, 4, 5, 6), kk.addAll(3, listOf(7, 8, 9)))
             assertEquals(listOf(1, 2, 1, 2, 3, 4, 5, 6, 3, 4, 5, 6), kk.addAll(2, kk))
