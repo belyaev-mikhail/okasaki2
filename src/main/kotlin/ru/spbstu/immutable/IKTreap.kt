@@ -122,3 +122,5 @@ fun <E> ikTreapOf(vararg values: E, random: Random = Random.Default): IKTreap<E>
     for(value in values) base = base.add(value)
     return base
 }
+fun <E> immutableListOf(vararg values: E): ImmutableList<E> = ikTreapOf(*values)
+fun <E> Collection<E>.toImmutableList() = immutableListOf<E>().addAll(this)

@@ -367,6 +367,12 @@ fun <K, V> hamtMapOf(vararg entries: Pair<K, V>): HamtMap<K, V> {
 fun <K, V> immutableMapOf(): ImmutableMap<K, V> = hamtMapOf()
 fun <K, V> immutableMapOf(entry: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(entry)
 fun <K, V> immutableMapOf(vararg entries: Pair<K, V>): ImmutableMap<K, V> = hamtMapOf(*entries)
+fun <K, V> Map<K, V>.toImmutableMap() = immutableMapOf<K, V>().putAll(this)
+@JvmName("entriesToImmutableMap")
+fun <K, V> Iterable<Map.Entry<K, V>>.toImmutableMap() =
+        this.fold(immutableMapOf<K, V>()) { m, (key, value) -> m.put(key, value) }
+fun <K, V> Iterable<Pair<K, V>>.toImmutableMap() =
+        this.fold(immutableMapOf<K, V>()) { m, (key, value) -> m.put(key, value) }
 
 class HamtSet<out E>
 internal constructor(internal val root: HamtElement<@UnsafeVariance E, Unit>? = null) : AbstractImmutableSet<E>() {
@@ -410,3 +416,4 @@ fun <E> hamtSetOf(vararg elements: E): HamtSet<E> {
 fun <E> immutableSetOf(): ImmutableSet<E> = hamtSetOf()
 fun <E> immutableSetOf(element: E): ImmutableSet<E> = hamtSetOf(element)
 fun <E> immutableSetOf(vararg elements: E): ImmutableSet<E> = hamtSetOf(*elements)
+fun <E> Collection<E>.toImmutableSet() = immutableSetOf<E>().addAll(this)
