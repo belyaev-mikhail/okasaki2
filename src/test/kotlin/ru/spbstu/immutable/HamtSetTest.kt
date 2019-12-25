@@ -4,6 +4,7 @@ import org.testng.annotations.Test
 import ru.spbstu.wheels.ints
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 data class Collider(val data: Int) {
     override fun hashCode(): Int = data % 3 // 0, 1 or 2
@@ -12,30 +13,36 @@ data class Collider(val data: Int) {
 class HamtSetTest {
     @Test
     fun testSmoke() {
+        val single = hamtSetOf(40)
+        assertEquals(setOf(40), single)
+        assertEquals(1, single.size)
+
         val a = hamtSetOf(1, 2, 3, 4, 5)
 
         assertEquals(setOf(1, 2, 3, 4, 5), a)
         assertEquals(5, a.size)
-        for(e in 1..5) assert(e in a)
+        for(e in 1..5) assertTrue(e in a)
 
         val b = a + hamtSetOf(6, 7, 8, 9)
 
         assertEquals(setOf(1, 2, 3, 4, 5, 6, 7, 8, 9), b)
         assertEquals(9, b.size)
-        for(e in 1..9) assert(e in b)
+        for(e in 1..9) assertTrue(e in b)
 
         val bb = a.addAll(listOf(6, 7, 8, 9))
 
         assertEquals(setOf(1, 2, 3, 4, 5, 6, 7, 8, 9), bb)
         assertEquals(9, bb.size)
-        for(e in 1..9) assert(e in bb)
+        for(e in 1..9) assertTrue(e in bb)
 
         assertEquals(setOf(1, 2, 3, 4, 5), a)
 
         val c = a + hamtSetOf(4, 5, 6, 7)
         assertEquals(setOf(7, 6, 5, 4, 3, 2, 1), c)
         assertEquals(7, c.size)
-        for(e in 1..7) assert(e in c)
+        for(e in 1..7) assertTrue(e in c)
+
+        assertTrue(600 !in c)
     }
 
     @Test
@@ -44,11 +51,13 @@ class HamtSetTest {
 
         assertEquals(500, a.size)
         assertEquals((1..500).mapTo(mutableSetOf(), ::Collider) as Set<Collider>, a)
-        for(e in 1..500) assert(Collider(e) in a)
+        for(e in 1..500) assertTrue(Collider(e) in a)
+
+        assertTrue(Collider(600) !in a)
 
         val b = a + hamtSetOf(*(200..600).map(::Collider).toTypedArray())
 
-        for(e in 1..600) assert(Collider(e) in b)
+        for(e in 1..600) assertTrue(Collider(e) in b)
 
         assertEquals(600, b.size)
         assertEquals((1..600).mapTo(mutableSetOf(), ::Collider) as Set<Collider>, b)
