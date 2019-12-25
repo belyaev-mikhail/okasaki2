@@ -39,6 +39,7 @@ class HamtSetTest {
         for(e in 1..7) assertTrue(e in c)
 
         assertTrue(600 !in c)
+        assertEquals(c, c - 600)
     }
 
     @Test
@@ -50,6 +51,7 @@ class HamtSetTest {
         for(e in 1..500) assertTrue(Collider(e) in a)
 
         assertTrue(Collider(600) !in a)
+        assertEquals(a, a - Collider(600))
 
         val b = a + hamtSetOf(*(200..600).map(::Collider).toTypedArray())
 

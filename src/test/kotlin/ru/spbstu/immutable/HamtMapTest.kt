@@ -40,6 +40,7 @@ class HamtMapTest {
         for(e in 1..7) assertTrue(e in c)
 
         assertTrue(600 !in c)
+        assertEquals(c, c - 600)
     }
 
     @Test
@@ -51,6 +52,9 @@ class HamtMapTest {
         for(e in 1..500) assertTrue(Collider(e) in a)
 
         assertTrue(Collider(600) !in a)
+        assertEquals(a, a - Collider(600))
+        assertEquals(a, a - Collider(601))
+        assertEquals(a, a - Collider(602))
 
         val b = a + hamtMapOf(*(200..600).map { Collider(it) to "$it" }.toTypedArray())
 
