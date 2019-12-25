@@ -60,12 +60,33 @@ class HamtSetTest {
     fun testRandomized() {
         for(seed in 0..400) {
             val random = Random(seed)
-            val data = random.ints().take(300).toList()
+            val data = random.ints().take(30).toList()
 
             val hamt = hamtSetOf(*data.toTypedArray())
             assertEquals(data.toSet(), hamt)
             for(e in data) assert(e in hamt)
             for(e in hamt) assertEquals(hamt, hamt - e + e)
         }
+
+        for(seed in 0..40) {
+            val random = Random(seed * Short.MAX_VALUE.toInt())
+            val data1 = random.ints(100, 0, 80).toList()
+            val data2 = random.ints(100, 0, 80).toList()
+
+            val hamt1 = hamtSetOf(*data1.toTypedArray())
+            val hamt2 = hamtSetOf(*data2.toTypedArray())
+            assertEquals(data1.toSet(), hamt1)
+            assertEquals(data2.toSet(), hamt2)
+            assertEquals(data1.toSet() + data2.toSet(), hamt1 + hamt2)
+            assertEquals(data1.toSet() intersect data2.toSet(), hamt1 intersect hamt2)
+            assertEquals(hamt1, hamt1 intersect hamt1)
+            assertEquals(hamt1, hamt1 + hamt1)
+            assertEquals(hamt1, hamt1 + immutableSetOf())
+            assertEquals(setOf<Int>(), hamt1 intersect immutableSetOf())
+            assertEquals(hamt1, immutableSetOf<Int>() + hamt1)
+            assertEquals(setOf<Int>(), immutableSetOf<Int>() intersect hamt1)
+        }
     }
+
+
 }

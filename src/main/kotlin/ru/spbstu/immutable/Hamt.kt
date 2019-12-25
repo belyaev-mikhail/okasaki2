@@ -389,7 +389,8 @@ internal constructor(internal val root: HamtElement<@UnsafeVariance E, Unit>? = 
     }
     override fun retainAll(elements: Collection<@UnsafeVariance E>): HamtSet<E> = when(elements) {
         is HamtSet<E> -> when {
-            null === root || null === elements.root -> this
+            null === root -> this
+            null === elements.root -> elements
             else -> HamtSet(root.intersect(elements.root))
         }
         else -> super.retainAll(elements) as HamtSet<E>
