@@ -6,10 +6,6 @@ import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-data class Collider(val data: Int) {
-    override fun hashCode(): Int = data % 3 // 0, 1 or 2
-}
-
 class HamtSetTest {
     @Test
     fun testSmoke() {
